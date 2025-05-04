@@ -16,8 +16,8 @@
  *  - SSD1306 OLED      : I2C SDA → A4, SCL → A5 (or 20/21 on Mega)
  *
  * WiFi Network:
- *  - SSID: JD-Home
- *  - Password: Azul09@$
+ *  - SSID: 
+ *  - Password: 
  *
  * Blynk:
  *  - Template ID: TMPL2JrlKDUrB
@@ -43,8 +43,8 @@
  #include <Servo.h>                  // Servo motor control
  
  // —— WiFi Credentials ——
- char ssid[] = "JD-Home";
- char pass[] = "Azul09@$";
+ char ssid[] = "WiFi";
+ char pass[] = "1234";
  
  // —— Pin Definitions —— 
  #define SS_PIN         10           // RFID SS pin
