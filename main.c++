@@ -1,14 +1,12 @@
 /**
- * Parking Spot Controller (Slave) with RFID, FSRs, Ultrasonic Sensor, and OLED Display
+ * Parking Spot Controller (Slave) with RFID, FSRs, Ultrasonic Sensor, OLED Display, and Blynk Integration
  *
  * This sketch operates as a secondary node in a parking system:
- *  - Reads an RFID tag and opens/closes a servo-driven gate.
- *  - Uses an ultrasonic sensor to detect vehicle passage and close the gate.
+ *  - Reads RFID tag and opens/closes a servo-driven gate.
+ *  - Uses an ultrasonic sensor to detect vehicle passage and close the gate automatically.
  *  - Monitors 3 parking spots using force-sensitive resistors (FSRs).
  *  - Displays spot availability and statuses on an SSD1306 OLED display.
- *
- * This controller does not communicate with the master Arduino via UART,
- * but can be adapted for expansion.
+ *  - Connects to WiFi using WiFiS3 and sends the available spot count to the Blynk app (Virtual Pin V0).
  *
  * Hardware Connections:
  *  - MFRC522 RFID      : SS → pin 10, RST → pin 9, SDA/SCK/MOSI/MISO → SPI
@@ -17,16 +15,36 @@
  *  - FSR Pressure Pads : Analog inputs A0, A1, A2
  *  - SSD1306 OLED      : I2C SDA → A4, SCL → A5 (or 20/21 on Mega)
  *
+ * WiFi Network:
+ *  - SSID: JD-Home
+ *  - Password: Azul09@$
+ *
+ * Blynk:
+ *  - Template ID: TMPL2JrlKDUrB
+ *  - Auth Token : mvjarp1hBEMH8C8Felsxm-uSXL7Evrdv
+ *  - Virtual Pin: V0 (available spots)
+ *
  * Author: Jeriel Dones Aguayo, Abdiel Gomez Alverio
  * Date: April 2025
  */
 
+ #define BLYNK_PRINT Serial
+ #define BLYNK_TEMPLATE_ID   "TMPL2JrlKDUrB"
+ #define BLYNK_TEMPLATE_NAME "Test"
+ #define BLYNK_AUTH_TOKEN    "mvjarp1hBEMH8C8Felsxm-uSXL7Evrdv"
+ 
+ #include <WiFiS3.h>
+ #include <SPI.h>
+ #include <BlynkSimpleWifi.h>
  #include <Wire.h>                    // I2C communication (OLED)
  #include <Adafruit_GFX.h>           // Graphics library for OLED
  #include <Adafruit_SSD1306.h>       // OLED driver library
- #include <SPI.h>                    // SPI communication (RFID)
  #include <MFRC522.h>                // RFID reader library
  #include <Servo.h>                  // Servo motor control
+ 
+ // —— WiFi Credentials ——
+ char ssid[] = "JD-Home";
+ char pass[] = "Azul09@$";
  
  // —— Pin Definitions —— 
  #define SS_PIN         10           // RFID SS pin
@@ -38,27 +56,29 @@
  #define FSR1_PIN        A0          // Parking spot 1 FSR
  #define FSR2_PIN        A1          // Parking spot 2 FSR
  #define FSR3_PIN        A2          // Parking spot 3 FSR
- #define FSR_THRESHOLD   500         // Threshold for FSR1 (custom thresholds for FSR2/3)
+ #define FSR_THRESHOLD   500         // Threshold for FSR1 (custom for FSR2/3 below)
  
  #define SCREEN_WIDTH    128         // OLED width (pixels)
  #define SCREEN_HEIGHT    64         // OLED height (pixels)
  #define OLED_RESET      -1          // OLED reset pin (not used)
  
- // —— Global Objects —— 
+ // —— Global Objects ——
  Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
  MFRC522 rfid(SS_PIN, RST_PIN);      // RFID reader object
  Servo gateServo;                    // Servo motor object
  
- // —— RFID Authorization —— 
- byte authorizedUID[4] = { 0x03, 0x0C, 0x49, 0x16 }; // Pre-defined authorized UID
- 
- // —— Parking Spot Management —— 
+ // —— Parking Spot Management ——
  const int totalSpots = 3;
  int availableSpots = totalSpots;
  bool gateOpen = false;
  
  void setup() {
-   Serial.begin(9600);               // Initialize serial monitor
+   Serial.begin(9600);
+ 
+   // Initialize Blynk and connect to WiFi
+   Serial.println(F("Connecting to WiFi..."));
+   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+   Serial.println(F("Connected to Blynk"));
  
    // RFID setup
    SPI.begin();                      // Start SPI bus
@@ -84,24 +104,23 @@
  }
  
  void loop() {
+   Blynk.run();                      // Handle Blynk communication
+ 
    // ——— 1) Read FSRs and Count Available Spots ——— 
    int fsr1 = analogRead(FSR1_PIN);
    int fsr2 = analogRead(FSR2_PIN);
    int fsr3 = analogRead(FSR3_PIN);
  
    bool spot1Free = fsr1 < FSR_THRESHOLD;
-   bool spot2Free = fsr2 < 270;     // Custom threshold for FSR2
-   bool spot3Free = fsr3 < 400;     // Custom threshold for FSR3
+   bool spot2Free = fsr2 < 270;
+   bool spot3Free = fsr3 < 400;
  
    availableSpots = 0;
    if (spot1Free) availableSpots++;
    if (spot2Free) availableSpots++;
    if (spot3Free) availableSpots++;
  
-   Serial.print("FSR1: "); Serial.print(fsr1);
-   Serial.print(" | FSR2: "); Serial.print(fsr2);
-   Serial.print(" | FSR3: "); Serial.print(fsr3);
-   Serial.print(" || Available: "); Serial.println(availableSpots);
+   Serial.print("Available Spots: "); Serial.println(availableSpots);
  
    // ——— 2) RFID Authentication ——— 
    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
@@ -109,7 +128,7 @@
        Serial.println(F("✅ Access Granted – Opening Gate"));
        gateServo.write(0);           // Open gate
        gateOpen = true;
-       delay(2000);                  // Wait for vehicle to enter
+       delay(2000);
      } else {
        Serial.println(F("❌ Access Denied – UID not recognized"));
      }
@@ -122,10 +141,9 @@
      Serial.print(F("Distance: "));
      Serial.print(distance);
      Serial.println(F(" cm"));
- 
-     if (distance <= 12.0) {
+     if (distance <= 11.0) {
        Serial.println(F("Vehicle passed – closing gate"));
-       delay(2500);                  // Allow vehicle to fully pass
+       delay(2500);
        gateServo.write(90);          // Close gate
        gateOpen = false;
      }
@@ -155,6 +173,9 @@
  
    display.display();                // Push new display content
  
+   // ——— 5) Send to Blynk ——— 
+   Blynk.virtualWrite(V0, availableSpots);
+ 
    delay(500);                       // Short delay before next loop
  }
  
@@ -162,6 +183,7 @@
   * Checks whether a scanned UID is authorized.
   */
  bool isAuthorized(byte *uid) {
+   byte authorizedUID[4] = { 0x03, 0x0C, 0x49, 0x16 };
    for (byte i = 0; i < 4; i++) {
      if (uid[i] != authorizedUID[i]) return false;
    }
