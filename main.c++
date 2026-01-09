@@ -1,30 +1,26 @@
 /**
- * Parking Spot Controller (Slave) with RFID, FSRs, Ultrasonic Sensor, OLED Display, and Blynk Integration
+ * Smart Parking Spot Controller with RFID, FSRs, Ultrasonic Sensor, OLED Display, and Blynk Integration
  *
- * This sketch operates as a secondary node in a parking system:
- *  - Reads RFID tag and opens/closes a servo-driven gate.
- *  - Uses an ultrasonic sensor to detect vehicle passage and close the gate automatically.
+ * This sketch implements a complete standalone smart parking controller:
+ *  - Authenticates vehicles using RFID.
+ *  - Controls a servo-driven gate for vehicle entry.
+ *  - Uses an ultrasonic sensor to detect vehicle passage and automatically close the gate.
  *  - Monitors 3 parking spots using force-sensitive resistors (FSRs).
- *  - Displays spot availability and statuses on an SSD1306 OLED display.
- *  - Connects to WiFi using WiFiS3 and sends the available spot count to the Blynk app (Virtual Pin V0).
+ *  - Displays system status and spot availability on an SSD1306 OLED display.
+ *  - Connects directly to WiFi using WiFiS3 and updates parking availability in real time via Blynk Cloud.
  *
  * Hardware Connections:
- *  - MFRC522 RFID      : SS → pin 10, RST → pin 9, SDA/SCK/MOSI/MISO → SPI
- *  - Servo Gate        : Control → pin 3
+ *  - MFRC522 RFID      : SS → pin 10, RST → pin 9, SPI interface
+ *  - Servo Gate        : Signal → pin 3
  *  - Ultrasonic Sensor : TRIG → pin 7, ECHO → pin 8
- *  - FSR Pressure Pads : Analog inputs A0, A1, A2
- *  - SSD1306 OLED      : I2C SDA → A4, SCL → A5 (or 20/21 on Mega)
- *
- * WiFi Network:
- *  - SSID: 
- *  - Password: 
+ *  - FSR Sensors       : A0, A1, A2
+ *  - SSD1306 OLED      : I2C SDA → A4, SCL → A5
  *
  * Blynk:
  *  - Template ID: TMPL2JrlKDUrB
- *  - Auth Token : mvjarp1hBEMH8C8Felsxm-uSXL7Evrdv
- *  - Virtual Pin: V0 (available spots)
+ *  - Virtual Pin: V0 (Available parking spots)
  *
- * Author: Jeriel Dones Aguayo, Abdiel Gomez Alverio
+ * Authors: Jeriel Dones Aguayo, Abdiel Gomez Alverio
  * Date: April 2025
  */
 
@@ -125,12 +121,12 @@
    // ——— 2) RFID Authentication ——— 
    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
      if (isAuthorized(rfid.uid.uidByte)) {
-       Serial.println(F("✅ Access Granted – Opening Gate"));
+       Serial.println(F("Access Granted – Opening Gate"));
        gateServo.write(0);           // Open gate
        gateOpen = true;
        delay(2000);
      } else {
-       Serial.println(F("❌ Access Denied – UID not recognized"));
+       Serial.println(F("Access Denied – UID not recognized"));
      }
      rfid.PICC_HaltA();              // Stop reading the current tag
    }
